@@ -1,4 +1,10 @@
 {
   "singleQuote": true,
-  "trailingComma": "all"
+  "trailingComma": "all",
+  "bracketSpacing": true,
+  "cursorOffset": -1,
+  "embeddedLanguageFormatting": "auto",
+  "endOfLine": "lf",
+  "printWidth": 100,
+  "semi": true
 }
