@@ -1,6 +1,6 @@
 {
   "singleQuote": true,
-  "trailingComma": "all",
+  "trailingComma": "none",
   "bracketSpacing": true,
   "cursorOffset": -1,
   "embeddedLanguageFormatting": "auto",
