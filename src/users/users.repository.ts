@@ -15,6 +15,10 @@ export class UsersRepository {
     return this.userModel.findById(id);
   }
 
+  async findSanitizedById(id: string): Promise<UserDocument | null> {
+    return this.userModel.findById(id).select('-password -updatedAt -__v');
+  }
+
   async findOne(filter: Record<string, any>): Promise<UserDocument | null> {
     return this.userModel.findOne(filter);
   }

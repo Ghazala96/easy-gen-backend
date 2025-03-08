@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { AggregatedAsset } from '../assets/schemas/asset.schema';
 import { AssetType } from '../assets/assets.constants';
@@ -8,6 +8,15 @@ import { User, UserDocument } from './schemas/user.schema';
 @Injectable()
 export class UsersService {
   constructor(private readonly usersRepo: UsersRepository) {}
+
+  async getUserProfile(userId: string) {
+    const user = await this.usersRepo.findSanitizedById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
+  }
 
   composeUserDataFromAssets(assets: AggregatedAsset[]) {
     const userData: { email?: string } = {};
