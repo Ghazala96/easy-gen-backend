@@ -13,11 +13,15 @@ import { OtpsService } from '../otps/otps.service';
 import {
   AssetExpiryInMinMap,
   AssetIdentifierAttributeMap,
-  AssetKeyPrefixMap
+  AssetKeyPrefixMap,
+  AssetOperation,
+  OperationalAssetTypes,
+  RequiredAssets
 } from './assets.constants';
 import { AssetsRepository } from './assets.repository';
 import { CreateAssetDto } from './dtos/create-asset.dto';
-import { Asset, AssetDocument, AssetStatus, AssetType } from './schemas/asset.schema';
+import { AggregatedAsset, AssetDocument } from './schemas/asset.schema';
+import { AssetStatus, AssetType } from './assets.constants';
 import { EmailAssetDataDto } from './dtos/asset-data.dto';
 import { VerifyAssetDto } from './dtos/verify-asset.dto';
 
@@ -54,7 +58,7 @@ export class AssetsService {
     return { submitId: asset.submitId, otp: asset.data.otp };
   }
 
-  async verifyAsset(submitId: Types.ObjectId, dto: VerifyAssetDto) {
+  async verifyAsset(submitId: string, dto: VerifyAssetDto) {
     const asset = await this.assetsRepo.findOne({
       submitId,
       status: AssetStatus.Pending,
@@ -93,7 +97,7 @@ export class AssetsService {
     return { claimId };
   }
 
-  async getAsset(claimId: Types.ObjectId) {
+  async getAsset(claimId: string) {
     const asset = await this.assetsRepo.findAssetWithSameKeyCheck(claimId);
     if (!asset) {
       throw new NotFoundException('Asset not found');
@@ -124,6 +128,36 @@ export class AssetsService {
     }
   }
 
+  areRequiredAssetsValid(operation: AssetOperation, assets: AggregatedAsset[]): boolean {
+    switch (operation) {
+      case AssetOperation.Registration:
+        return this.areRegistrationRequiredAssetsValid(assets);
+      default:
+        return false;
+    }
+  }
+
+  areRegistrationRequiredAssetsValid(assets: AggregatedAsset[]): boolean {
+    const requiredAssets = RequiredAssets[AssetOperation.Registration];
+    const validatedAssetTypes: AssetType[] = [];
+    for (const asset of assets) {
+      if (!requiredAssets.includes(asset.type)) continue;
+      if (validatedAssetTypes.includes(asset.type)) continue;
+      if (
+        OperationalAssetTypes.includes(asset.type) &&
+        asset.data.operation !== AssetOperation.Registration
+      )
+        continue;
+      if (asset.status !== AssetStatus.Verified) continue;
+      if (asset.isLinked) continue;
+      if (asset.isExpired) continue;
+
+      validatedAssetTypes.push(asset.type);
+    }
+
+    return validatedAssetTypes.length === requiredAssets.length;
+  }
+
   private composeKey(type: AssetType, data: EmailAssetDataDto /* | OtherAssetDataDto */): string {
     return `${AssetKeyPrefixMap[type]}-${data[AssetIdentifierAttributeMap[type]]}`;
   }
@@ -131,5 +165,9 @@ export class AssetsService {
   private getExpiryDate(type: AssetType): Date {
     const minutes = AssetExpiryInMinMap[type] ?? 5;
     return DateTime.utc().plus({ minutes }).toJSDate();
+  }
+
+  async findAssetsWithSameKeysCheck(claimIds: string[]) {
+    return this.assetsRepo.findAssetsWithSameKeysCheck(claimIds);
   }
 }

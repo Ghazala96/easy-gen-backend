@@ -1,14 +1,11 @@
 import { IsEmail, IsEnum } from 'class-validator';
 
-export enum EmailAssetOperation {
-  Registration = 'registration',
-  Login = 'login'
-}
+import { AssetOperation } from '../assets.constants';
 
 export class EmailAssetDataDto {
   @IsEmail()
   email: string;
 
-  @IsEnum(EmailAssetOperation)
-  operation: EmailAssetOperation;
+  @IsEnum(AssetOperation)
+  operation: AssetOperation;
 }

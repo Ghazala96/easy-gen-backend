@@ -2,17 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
 import { LinkedEntity } from './linked-entity.schema';
-
-export enum AssetType {
-  Email = 'email'
-}
-
-export enum AssetStatus {
-  Pending = 'Pending',
-  Verified = 'Verified',
-  Unverified = 'Unverified',
-  Failed = 'Failed'
-}
+import { AssetStatus, AssetType } from '../assets.constants';
 
 export type AssetDocument = HydratedDocument<Asset>;
 
@@ -53,3 +43,14 @@ export class Asset {
 }
 
 export const AssetSchema = SchemaFactory.createForClass(Asset);
+
+//TODO: Rename to something more descriptive
+export type AggregatedAsset = Pick<
+  Asset,
+  'type' | 'key' | 'status' | 'data' | 'submitId' | 'claimId' | 'statusReason'
+> & {
+  _id: Types.ObjectId;
+  isLinked: boolean;
+  isExpired: boolean;
+  isUsed: boolean;
+};

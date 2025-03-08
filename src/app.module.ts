@@ -4,12 +4,16 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AssetsModule } from './assets/assets.module';
 import { OtpsModule } from './otps/otps.module';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     MongooseModule.forRoot('mongodb://localhost/nest'), //TODO: Add as env variable and add event listeners
     AssetsModule,
-    OtpsModule
+    OtpsModule,
+    AuthModule,
+    UsersModule
   ],
   providers: [
     {
