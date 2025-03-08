@@ -111,6 +111,14 @@ export class AuthService {
     };
   }
 
+  async logout(decodedToken: { sessionId: string; sub: string }) {
+    const sessionDeleted: boolean = await this.cacheManager.del(
+      `session:userId:${decodedToken.sub}`
+    );
+
+    return sessionDeleted;
+  }
+
   async generateJwtTokens(user: UserDocument) {
     const accessSessionId = createId();
     const refreshSessionId = createId();
