@@ -25,4 +25,8 @@ export class UsersService {
   async create(user: Partial<User>): Promise<UserDocument> {
     return this.usersRepo.create(user);
   }
+
+  async findOne(filter: Record<string, any>): Promise<UserDocument | null> {
+    return this.usersRepo.findOne(filter);
+  }
 }

@@ -1,5 +1,6 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
+  BadRequestException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -8,16 +9,18 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { createId } from '@paralleldrive/cuid2';
+import * as bcrypt from 'bcrypt';
 import { Cache } from 'cache-manager';
 
 import { LinkedEntityType } from '../assets/schemas/linked-entity.schema';
-import { AssetOperation } from '../assets/assets.constants';
+import { AssetOperation, AssetType } from '../assets/assets.constants';
 import { AssetsService } from '../assets/assets.service';
 import { hashPassword } from '../common/utils';
 import { UserDocument } from '../users/schemas/user.schema';
 import { UserRole } from '../users/user.constants';
 import { UsersService } from '../users/users.service';
 import { RegisterUserDto } from './dtos/register-user.dto';
+import { LoginDto } from './dtos/login.dto';
 
 @Injectable()
 export class AuthService {
@@ -66,6 +69,44 @@ export class AuthService {
 
     return {
       user: cleanedUser,
+      ...tokens
+    };
+  }
+
+  async login(dto: LoginDto) {
+    const assets = await this.assetsService.findAssetsWithSameKeysCheck(dto.claimIds);
+    if (!assets.length) {
+      throw new NotFoundException('No assets found with the provided claim IDs');
+    }
+
+    const areRequiredAssetsValid = this.assetsService.areRequiredAssetsValid(
+      AssetOperation.Login,
+      assets
+    );
+    if (!areRequiredAssetsValid) {
+      throw new BadRequestException('Invalid credentials');
+    }
+
+    const identifierAsset = assets.find((asset) => asset.type === AssetType.Email);
+    const user = await this.usersService.findOne({ email: identifierAsset.data.email });
+    if (!user) {
+      throw new BadRequestException('Invalid credentials'); // Not possible to reach here
+    }
+
+    const isPasswordValid = await bcrypt.compare(dto.password, user.password);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Invalid credentials');
+    }
+
+    const assetsUsed = await this.assetsService.useAssets(dto.claimIds);
+    if (!assetsUsed) {
+      throw new InternalServerErrorException('Failed to mark assets as used');
+    }
+
+    const tokens = await this.generateJwtTokens(user);
+
+    return {
+      user: { id: user.id },
       ...tokens
     };
   }

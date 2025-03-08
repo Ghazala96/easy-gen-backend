@@ -30,5 +30,6 @@ export const AssetIdentifierAttributeMap: Record<AssetType, string> = {
 export const OperationalAssetTypes = [AssetType.Email];
 
 export const RequiredAssets = {
-  [AssetOperation.Registration]: [AssetType.Email]
+  [AssetOperation.Registration]: [AssetType.Email],
+  [AssetOperation.Login]: [AssetType.Email]
 };

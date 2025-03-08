@@ -134,12 +134,14 @@ export class AssetsService {
     switch (operation) {
       case AssetOperation.Registration:
         return this.areRegistrationRequiredAssetsValid(assets);
+      case AssetOperation.Login:
+        return this.areOperationalRequiredAssetsValid(operation, assets);
       default:
         return false;
     }
   }
 
-  areRegistrationRequiredAssetsValid(assets: AggregatedAsset[]): boolean {
+  private areRegistrationRequiredAssetsValid(assets: AggregatedAsset[]): boolean {
     const requiredAssets = RequiredAssets[AssetOperation.Registration];
     const validatedAssetTypes: AssetType[] = [];
     for (const asset of assets) {
@@ -160,6 +162,33 @@ export class AssetsService {
     return validatedAssetTypes.length === requiredAssets.length;
   }
 
+  //TODO: Come up with a more descriptive name because this shouldn't include registration
+  private areOperationalRequiredAssetsValid(
+    operation: AssetOperation,
+    assets: AggregatedAsset[]
+  ): boolean {
+    const requiredAssets = RequiredAssets[operation];
+    if (!requiredAssets) return false;
+
+    const validatedAssetTypes: AssetType[] = [];
+    for (const asset of assets) {
+      if (!requiredAssets.includes(asset.type)) continue;
+      if (validatedAssetTypes.includes(asset.type)) continue;
+      if (!OperationalAssetTypes.includes(asset.type)) continue;
+      if (!asset.data.operation) continue;
+      if (asset.data.operation === AssetOperation.Registration) continue;
+      if (asset.data.operation !== operation) continue;
+      if (asset.status !== AssetStatus.Verified) continue;
+      if (!asset.isLinked) continue;
+      if (asset.isExpired) continue;
+      if (asset.isUsed) continue;
+
+      validatedAssetTypes.push(asset.type);
+    }
+
+    return validatedAssetTypes.length === requiredAssets.length;
+  }
+
   async linkAssets(claimIds: string[], linkedEntity: LinkedEntity) {
     const result = await this.assetsRepo.updateMany(
       {
@@ -169,6 +198,22 @@ export class AssetsService {
       },
       {
         linkedEntity,
+        usedAt: DateTime.utc().toJSDate()
+      }
+    );
+
+    return result.modifiedCount === claimIds.length;
+  }
+
+  async useAssets(claimIds: string[]) {
+    const result = await this.assetsRepo.updateMany(
+      {
+        claimId: { $in: claimIds },
+        status: AssetStatus.Verified,
+        linkedEntity: { $exists: false },
+        usedAt: { $exists: false }
+      },
+      {
         usedAt: DateTime.utc().toJSDate()
       }
     );
@@ -193,6 +238,10 @@ export class AssetsService {
   private getExpiryDate(type: AssetType): Date {
     const minutes = AssetExpiryInMinMap[type] ?? 5;
     return DateTime.utc().plus({ minutes }).toJSDate();
+  }
+
+  async findAssetWithSameKeyCheck(claimId: string) {
+    return this.assetsRepo.findAssetWithSameKeyCheck(claimId);
   }
 
   async findAssetsWithSameKeysCheck(claimIds: string[]) {

@@ -15,7 +15,7 @@ export class UsersRepository {
     return this.userModel.findById(id);
   }
 
-  async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email });
+  async findOne(filter: Record<string, any>): Promise<UserDocument | null> {
+    return this.userModel.findOne(filter);
   }
 }
