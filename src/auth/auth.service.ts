@@ -1,9 +1,20 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import {
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import { createId } from '@paralleldrive/cuid2';
+import { Cache } from 'cache-manager';
 
 import { LinkedEntityType } from '../assets/schemas/linked-entity.schema';
 import { AssetOperation } from '../assets/assets.constants';
 import { AssetsService } from '../assets/assets.service';
 import { hashPassword } from '../common/utils';
+import { UserDocument } from '../users/schemas/user.schema';
 import { UserRole } from '../users/user.constants';
 import { UsersService } from '../users/users.service';
 import { RegisterUserDto } from './dtos/register-user.dto';
@@ -12,7 +23,10 @@ import { RegisterUserDto } from './dtos/register-user.dto';
 export class AuthService {
   constructor(
     private readonly assetsService: AssetsService,
-    private readonly usersService: UsersService
+    private readonly usersService: UsersService,
+    private readonly configService: ConfigService,
+    private readonly jwtService: JwtService,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache
   ) {}
 
   async registerUser(dto: RegisterUserDto) {
@@ -46,8 +60,43 @@ export class AuthService {
       throw new InternalServerErrorException('Failed to link assets');
     }
 
+    const tokens = await this.generateJwtTokens(user);
+
     const { __v, password: pw, ...cleanedUser } = user.toObject();
 
-    return cleanedUser;
+    return {
+      user: cleanedUser,
+      ...tokens
+    };
+  }
+
+  async generateJwtTokens(user: UserDocument) {
+    const accessSessionId = createId();
+    const refreshSessionId = createId();
+
+    const accessPayload = {
+      session: accessSessionId,
+      sub: user.id,
+      role: user.role
+    };
+    const accessToken = this.jwtService.sign(accessPayload, {
+      secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
+      expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRES_IN')
+    });
+
+    const refreshPayload = {
+      session: refreshSessionId,
+      sub: user.id
+    };
+    const refreshToken = this.jwtService.sign(refreshPayload, {
+      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN')
+    });
+
+    const key = `session:userId:${user.id}`;
+    const value = `${accessSessionId}:${refreshSessionId}`;
+    await this.cacheManager.set(key, value);
+
+    return { accessToken, refreshToken };
   }
 }
