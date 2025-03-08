@@ -13,16 +13,23 @@ export class AssetsRepository {
     return this.assetModel.create(asset);
   }
 
-  async updateOne(query: Record<string, any>, update: Record<string, any>): Promise<UpdateResult> {
-    return this.assetModel.updateOne(query, update);
+  async updateOne(filter: Record<string, any>, update: Record<string, any>): Promise<UpdateResult> {
+    return this.assetModel.updateOne(filter, update);
+  }
+
+  async updateMany(
+    filter: Record<string, any>,
+    update: Record<string, any>
+  ): Promise<UpdateResult> {
+    return this.assetModel.updateMany(filter, update);
   }
 
   async findById(id: string): Promise<AssetDocument | null> {
     return this.assetModel.findById(id);
   }
 
-  async findOne(query: Record<string, any>): Promise<AssetDocument | null> {
-    return this.assetModel.findOne(query);
+  async findOne(filter: Record<string, any>): Promise<AssetDocument | null> {
+    return this.assetModel.findOne(filter);
   }
 
   async findAssetWithSameKeyCheck(claimId: string): Promise<AggregatedAsset | null> {

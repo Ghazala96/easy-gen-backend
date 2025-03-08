@@ -14,8 +14,9 @@ export enum AssetOperation {
   Login = 'login'
 }
 
+//TODO: Can be further optimized to be per asset type and per operation if exists
 export const AssetExpiryInMinMap: Record<AssetType, number> = {
-  [AssetType.Email]: 5
+  [AssetType.Email]: 30 // Usually less than this in a prod environment
 };
 
 export const AssetKeyPrefixMap: Record<AssetType, string> = {

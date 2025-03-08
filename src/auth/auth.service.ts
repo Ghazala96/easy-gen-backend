@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 
+import { LinkedEntityType } from '../assets/schemas/linked-entity.schema';
 import { AssetOperation } from '../assets/assets.constants';
 import { AssetsService } from '../assets/assets.service';
 import { hashPassword } from '../common/utils';
@@ -24,8 +25,8 @@ export class AuthService {
       AssetOperation.Registration,
       assets
     );
-    if (areRequiredAssetsValid) {
-      throw new NotFoundException('Required assets are not verified or linked');
+    if (!areRequiredAssetsValid) {
+      throw new NotFoundException('Required assets are invalid');
     }
 
     const { claimIds, password, ...cleanedDto } = dto;
@@ -36,6 +37,14 @@ export class AuthService {
       password: await hashPassword(password),
       role: UserRole.User
     });
+
+    const assetsLinked = await this.assetsService.linkAssets(claimIds, {
+      type: LinkedEntityType.User,
+      id: user.id
+    });
+    if (!assetsLinked) {
+      throw new InternalServerErrorException('Failed to link assets');
+    }
 
     const { __v, password: pw, ...cleanedUser } = user.toObject();
 

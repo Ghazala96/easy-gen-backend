@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException
 } from '@nestjs/common';
-import bcrypt from 'bcrypt';
+import * as bcrypt from 'bcrypt';
 import { DateTime } from 'luxon';
 import { Types } from 'mongoose';
 
@@ -20,7 +20,8 @@ import {
 } from './assets.constants';
 import { AssetsRepository } from './assets.repository';
 import { CreateAssetDto } from './dtos/create-asset.dto';
-import { AggregatedAsset, AssetDocument } from './schemas/asset.schema';
+import { AggregatedAsset, Asset, AssetDocument } from './schemas/asset.schema';
+import { LinkedEntity } from './schemas/linked-entity.schema';
 import { AssetStatus, AssetType } from './assets.constants';
 import { EmailAssetDataDto } from './dtos/asset-data.dto';
 import { VerifyAssetDto } from './dtos/verify-asset.dto';
@@ -55,7 +56,7 @@ export class AssetsService {
     });
 
     //in a prod environment we would not return the OTP
-    return { submitId: asset.submitId, otp: asset.data.otp };
+    return { submitId: asset.submitId, otp };
   }
 
   async verifyAsset(submitId: string, dto: VerifyAssetDto) {
@@ -71,7 +72,7 @@ export class AssetsService {
     switch (asset.type) {
       case AssetType.Email:
         if (!dto.code) {
-          throw new BadRequestException('Code is required');
+          throw new BadRequestException(['code should not be empty']); // temporary solution to match validation messages
         }
         return this.verifyEmailAsset(asset, dto);
       default:
@@ -103,25 +104,26 @@ export class AssetsService {
       throw new NotFoundException('Asset not found');
     }
 
+    const sanitizedAsset: Partial<AggregatedAsset> = this.sanitizeAsset(asset);
     const res = {
-      claimId: asset.claimId,
-      status: asset.status,
-      isExpired: asset.isExpired
+      claimId: sanitizedAsset.claimId,
+      status: sanitizedAsset.status,
+      isExpired: sanitizedAsset.isExpired
     };
 
-    switch (asset.status) {
+    switch (sanitizedAsset.status) {
       case AssetStatus.Verified:
         return {
           ...res,
-          data: asset.data,
-          isLinked: asset.isLinked,
-          isUsed: asset.isUsed
+          data: sanitizedAsset.data,
+          isLinked: sanitizedAsset.isLinked,
+          isUsed: sanitizedAsset.isUsed
         };
       case AssetStatus.Unverified:
       case AssetStatus.Failed:
         return {
           ...res,
-          statusReason: asset.statusReason
+          statusReason: sanitizedAsset.statusReason
         };
       default:
         return res;
@@ -156,6 +158,32 @@ export class AssetsService {
     }
 
     return validatedAssetTypes.length === requiredAssets.length;
+  }
+
+  async linkAssets(claimIds: string[], linkedEntity: LinkedEntity) {
+    const result = await this.assetsRepo.updateMany(
+      {
+        claimId: { $in: claimIds },
+        status: AssetStatus.Verified,
+        linkedEntity: { $exists: false }
+      },
+      {
+        linkedEntity,
+        usedAt: DateTime.utc().toJSDate()
+      }
+    );
+
+    return result.modifiedCount === claimIds.length;
+  }
+
+  private sanitizeAsset(asset: Asset | AggregatedAsset): Partial<Asset | AggregatedAsset> {
+    switch (asset.type) {
+      case AssetType.Email:
+        delete asset.data.hashedOtp;
+        return asset;
+      default:
+        return asset;
+    }
   }
 
   private composeKey(type: AssetType, data: EmailAssetDataDto /* | OtherAssetDataDto */): string {

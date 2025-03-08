@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { IsEnum, IsObject, ValidateNested } from 'class-validator';
 
-import { AssetType } from '../schemas/asset.schema';
+import { AssetType } from '../assets.constants';
 import { EmailAssetDataDto } from './asset-data.dto';
 
 export class CreateAssetDto {
