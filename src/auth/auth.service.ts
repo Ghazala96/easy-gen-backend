@@ -45,7 +45,7 @@ export class AuthService {
       assets
     );
     if (!areRequiredAssetsValid) {
-      throw new NotFoundException('Required assets are invalid');
+      throw new BadRequestException('Required assets are invalid');
     }
 
     const { claimIds, password, ...cleanedDto } = dto;
@@ -116,8 +116,11 @@ export class AuthService {
   async logout(userId: string) {
     const key = this.composeAuthSessionKey(userId);
     const sessionDeleted: boolean = await this.cacheManager.del(key);
+    if (!sessionDeleted) {
+      throw new InternalServerErrorException('Failed to log out and delete session');
+    }
 
-    return sessionDeleted;
+    return;
   }
 
   async refreshToken(refreshToken: string) {
