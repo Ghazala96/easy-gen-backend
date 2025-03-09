@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 
 import { Public } from '../common/decorators/auth/public.decorator';
 import { ValidateMongoIdPipe } from '../common/pipes/validate-mongo-id.pipe';
@@ -18,6 +18,7 @@ export class AssetsController {
 
   @Public()
   @Post(':submitId/verify')
+  @HttpCode(200)
   async verifyAsset(
     @Param('submitId', ValidateMongoIdPipe) submitId: string,
     @Body() dto: VerifyAssetDto
