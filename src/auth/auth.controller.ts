@@ -24,7 +24,7 @@ export class AuthController {
   }
 
   @Post('logout')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.NO_CONTENT)
   async logout(@Request() req) {
     return this.authService.logout(req.user.sub);
   }
