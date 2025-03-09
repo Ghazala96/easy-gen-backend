@@ -14,7 +14,6 @@ export class IsStrongPasswordConstraint implements ValidatorConstraintInterface 
     }
 
     const result = zxcvbn(password);
-    console.log('result: ', result);
     return result.score >= 3;
   }
 
