@@ -4,7 +4,8 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
-  NotFoundException
+  NotFoundException,
+  UnauthorizedException
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -21,6 +22,7 @@ import { UserRole } from '../users/user.constants';
 import { UsersService } from '../users/users.service';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { LoginDto } from './dtos/login.dto';
+import { AuthSessionKeyPrefix } from './auth.constants';
 
 @Injectable()
 export class AuthService {
@@ -111,41 +113,77 @@ export class AuthService {
     };
   }
 
-  async logout(decodedToken: { sessionId: string; sub: string }) {
-    const sessionDeleted: boolean = await this.cacheManager.del(
-      `session:userId:${decodedToken.sub}`
-    );
+  async logout(userId: string) {
+    const key = this.composeAuthSessionKey(userId);
+    const sessionDeleted: boolean = await this.cacheManager.del(key);
 
     return sessionDeleted;
   }
 
-  async generateJwtTokens(user: UserDocument) {
-    const accessSessionId = createId();
-    const refreshSessionId = createId();
+  async refreshToken(refreshToken: string) {
+    const refreshTokenPayload = this.jwtService.verify(refreshToken, {
+      secret: this.configService.get<string>('JWT_REFRESH_SECRET')
+    });
 
-    const accessPayload = {
-      session: accessSessionId,
+    const key = this.composeAuthSessionKey(refreshTokenPayload.sub);
+    const session: string = await this.cacheManager.get(key);
+    if (!session || session.split(':')[1] !== refreshTokenPayload.sessionId) {
+      throw new UnauthorizedException('Session invalid or expired');
+    }
+
+    const user = await this.usersService.findOne({ _id: refreshTokenPayload.sub });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const accessTokenSessionId = createId();
+    const accessToken = this.generateAccessToken(user, accessTokenSessionId);
+    const newSession = `${accessTokenSessionId}:${refreshTokenPayload.sessionId}`;
+    await this.cacheManager.set(key, newSession);
+
+    return { accessToken };
+  }
+
+  private async generateJwtTokens(user: UserDocument) {
+    const accessTokenSessionId = createId();
+    const refreshTokenSessionId = createId();
+    const accessToken = this.generateAccessToken(user, accessTokenSessionId);
+    const refreshToken = this.generateRefreshToken(user, refreshTokenSessionId);
+    const key = this.composeAuthSessionKey(user.id);
+    const session = `${accessTokenSessionId}:${refreshTokenSessionId}`;
+    await this.cacheManager.set(key, session);
+
+    return { accessToken, refreshToken };
+  }
+
+  private generateAccessToken(user: UserDocument, sessionId: string) {
+    const payload = {
+      sessionId,
       sub: user.id,
       role: user.role
     };
-    const accessToken = this.jwtService.sign(accessPayload, {
+    const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
       expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRES_IN')
     });
 
-    const refreshPayload = {
-      session: refreshSessionId,
+    return accessToken;
+  }
+
+  private generateRefreshToken(user: UserDocument, sessionId: string) {
+    const payload = {
+      sessionId,
       sub: user.id
     };
-    const refreshToken = this.jwtService.sign(refreshPayload, {
+    const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN')
     });
 
-    const key = `session:userId:${user.id}`;
-    const value = `${accessSessionId}:${refreshSessionId}`;
-    await this.cacheManager.set(key, value);
+    return refreshToken;
+  }
 
-    return { accessToken, refreshToken };
+  private composeAuthSessionKey(userId: string) {
+    return `${AuthSessionKeyPrefix}${userId}`;
   }
 }

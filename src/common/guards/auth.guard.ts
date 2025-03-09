@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Cache } from 'cache-manager';
 import { Request } from 'express';
 
+import { AuthSessionKeyPrefix } from '../../auth/auth.constants';
 import { IS_PUBLIC_KEY } from '../decorators/auth/public.decorator';
 
 @Injectable()
@@ -57,9 +58,10 @@ export class AuthGuard implements CanActivate {
 
   //TODO: Move to auth service
   private async validateSession(payload: { sessionId: string; sub: string }) {
-    const cachedSession: string = await this.cacheManager.get(`session:userId:${payload.sub}`);
-    if (!cachedSession || cachedSession.split(':')[0] !== payload.sessionId) {
-      throw new UnauthorizedException('Session expired or invalid');
+    const key = `${AuthSessionKeyPrefix}${payload.sub}`;
+    const session: string = await this.cacheManager.get(key);
+    if (!session || session.split(':')[0] !== payload.sessionId) {
+      throw new UnauthorizedException('Session invalid or expired');
     }
   }
 }

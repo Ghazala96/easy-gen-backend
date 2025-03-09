@@ -2,8 +2,9 @@ import { Body, Controller, Post, Request } from '@nestjs/common';
 
 import { Public } from '../common/decorators/auth/public.decorator';
 import { AuthService } from './auth.service';
-import { RegisterUserDto } from './dtos/register-user.dto';
 import { LoginDto } from './dtos/login.dto';
+import { RefreshTokenDto } from './dtos/refresh-token.dto';
+import { RegisterUserDto } from './dtos/register-user.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -23,6 +24,11 @@ export class AuthController {
 
   @Post('logout')
   async logout(@Request() req) {
-    return this.authService.logout(req.user);
+    return this.authService.logout(req.user.sub);
+  }
+
+  @Post('refresh')
+  async refreshToken(@Body() dto: RefreshTokenDto) {
+    return this.authService.refreshToken(dto.refreshToken);
   }
 }
