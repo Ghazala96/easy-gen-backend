@@ -20,6 +20,7 @@ import { hashPassword } from '../common/utils';
 import { UserDocument } from '../users/schemas/user.schema';
 import { UserRole } from '../users/user.constants';
 import { UsersService } from '../users/users.service';
+import { RateLimiterService } from '../rate-limiter/rate-limiter.service';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { LoginDto } from './dtos/login.dto';
 import { AuthSessionKeyPrefix } from './auth.constants';
@@ -31,6 +32,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly rateLimiterService: RateLimiterService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache
   ) {}
 
@@ -81,22 +83,37 @@ export class AuthService {
       throw new NotFoundException('No assets found with the provided claim IDs');
     }
 
+    const identifierAsset = assets.find((asset) => asset.type === AssetType.Email);
+    const user = await this.usersService.findOne({ email: identifierAsset.data.email });
+    if (!user) {
+      throw new BadRequestException('Invalid credentials');
+    }
+
+    const isBlocked = await this.rateLimiterService.isBlocked(user.id, 'login');
+    if (isBlocked) {
+      throw new UnauthorizedException('Too many failed attempts. Try again later.');
+    }
+
     const areRequiredAssetsValid = this.assetsService.areRequiredAssetsValid(
       AssetOperation.Login,
       assets
     );
     if (!areRequiredAssetsValid) {
-      throw new BadRequestException('Invalid credentials');
-    }
+      const { isBlocked } = await this.rateLimiterService.incrementFailure(user.id, 'login');
+      if (isBlocked) {
+        throw new UnauthorizedException('Too many failed attempts. Try again later.');
+      }
 
-    const identifierAsset = assets.find((asset) => asset.type === AssetType.Email);
-    const user = await this.usersService.findOne({ email: identifierAsset.data.email });
-    if (!user) {
-      throw new BadRequestException('Invalid credentials'); // Not possible to reach here
+      throw new BadRequestException('Invalid credentials');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
     if (!isPasswordValid) {
+      const { isBlocked } = await this.rateLimiterService.incrementFailure(user.id, 'login');
+      if (isBlocked) {
+        throw new UnauthorizedException('Too many failed attempts. Try again later.');
+      }
+
       throw new BadRequestException('Invalid credentials');
     }
 
