@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsObject, ValidateNested } from 'class-validator';
 
@@ -7,6 +8,7 @@ import { EmailAssetDataDto } from './asset-data.dto';
 
 export class CreateAssetDto {
   @IsEnum(AssetType)
+  @ApiProperty({ enum: AssetType, example: AssetType.Email })
   type: AssetType;
 
   @IsObject()
@@ -19,5 +21,6 @@ export class CreateAssetDto {
         throw new BadRequestException('Unsupported asset type');
     }
   })
+  @ApiProperty({ type: EmailAssetDataDto })
   data: EmailAssetDataDto; // | OtherAssetDataDto;
 }
